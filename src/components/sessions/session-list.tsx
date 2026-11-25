@@ -23,16 +23,17 @@ export function SessionList({
   label,
   canStaffEnd = false,
 }: {
-  sessions: SessionListItem[];
+  sessions?: SessionListItem[];
   now: number;
   timeZone: string;
   label: string;
   canStaffEnd?: boolean;
 }) {
-  if (sessions.length === 0) return <p className="text-sm text-muted-foreground">No sessions yet.</p>;
+  const rows = sessions ?? [];
+  if (rows.length === 0) return <p className="text-sm text-muted-foreground">No sessions yet.</p>;
   return (
     <ul aria-label={label} className="divide-y rounded-lg border">
-      {sessions.map((s) => (
+      {rows.map((s) => (
         <li key={s.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 space-y-0.5 text-sm">
             <p className="font-medium break-words">{s.machineName}</p>

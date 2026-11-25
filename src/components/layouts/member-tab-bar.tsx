@@ -33,7 +33,7 @@ function TabBar({ pathname }: { pathname: string | null }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 border-t bg-background pb-[env(safe-area-inset-bottom)]"
+      className="fixed inset-x-0 bottom-0 z-40 bg-ink pb-[env(safe-area-inset-bottom)] text-white print:hidden"
     >
       <ul className="mx-auto grid max-w-2xl grid-cols-3">
         {TABS.map(({ href, label, icon: Icon }) => {
@@ -45,11 +45,11 @@ function TabBar({ pathname }: { pathname: string | null }) {
                 prefetch={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                  "flex min-h-16 flex-col items-center justify-center gap-1 border-t-4 text-xs font-semibold tracking-[0.04em] uppercase outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-sign-yellow focus-visible:ring-inset",
+                  active ? "border-sign-yellow text-sign-yellow" : "border-transparent text-white/75 hover:text-white",
                 )}
               >
-                <Icon aria-hidden="true" className="size-5" />
+                <Icon aria-hidden="true" className="size-5" strokeWidth={active ? 2.5 : 2} />
                 {label}
               </Link>
             </li>
