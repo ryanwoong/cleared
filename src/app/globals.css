@@ -7,9 +7,19 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  /* System fonts only: no external font requests (technologies.md §8). */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* One self-hosted typeface family (Barlow + Barlow Condensed, OFL), bundled by next/font/local: no external font requests. */
+  --font-sans: var(--font-barlow), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: var(--font-barlow-condensed), var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  /* Safety-sign palette (ISO 7010 colours, darkened where white text sits on them). */
+  --color-ink: var(--ink);
+  --color-sign-green: var(--sign-green);
+  --color-sign-yellow: var(--sign-yellow);
+  --color-sign-red: var(--sign-red);
+  --color-sign-blue: var(--sign-blue);
+  --ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --animate-sign-flip: sign-flip 520ms var(--ease-spring) both;
+  --animate-rise: rise 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
   /* Status tokens → utilities such as bg-status-cleared / text-status-cleared-foreground. */
   --color-status-cleared: var(--status-cleared);
   --color-status-cleared-foreground: var(--status-cleared-foreground);
@@ -61,37 +71,42 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --ink: #111111;
+  --sign-green: #007a37;
+  --sign-yellow: #ffd200;
+  --sign-red: #c8102e;
+  --sign-blue: #005eb8;
+  --background: #f2f2ef;
+  --foreground: #111111;
+  --card: #ffffff;
+  --card-foreground: #111111;
+  --popover: #ffffff;
+  --popover-foreground: #111111;
+  --primary: #ffd200;
+  --primary-foreground: #111111;
+  --secondary: #111111;
+  --secondary-foreground: #ffffff;
+  --muted: #e8e7e2;
+  --muted-foreground: #53514b;
+  --accent: #ebe9e2;
+  --accent-foreground: #111111;
+  --destructive: #c8102e;
+  --border: #d4d2c9;
+  --input: #8c8a82;
+  --ring: #005eb8;
+  --chart-1: #007a37;
+  --chart-2: #ffd200;
+  --chart-3: #c8102e;
+  --chart-4: #005eb8;
+  --chart-5: #111111;
+  --sidebar: #111111;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffd200;
+  --sidebar-primary-foreground: #111111;
+  --sidebar-accent: #26262a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2c2c30;
+  --sidebar-ring: #ffd200;
 
   /*
    * Status tokens (PRD 8). Each pair is a tinted background + foreground with
@@ -99,58 +114,93 @@
    * Status is never colour alone: <StatusBadge> always adds an icon and a word.
    * Keep these as 6-digit hex so the contrast test can read them.
    */
-  --status-cleared: #dcfce7;
-  --status-cleared-foreground: #166534;
-  --status-supervision: #fef3c7;
-  --status-supervision-foreground: #854d0e;
-  --status-not-cleared: #fee2e2;
-  --status-not-cleared-foreground: #991b1b;
-  --status-out-of-service: #e2e8f0;
-  --status-out-of-service-foreground: #1e293b;
-  --status-in-use: #dbeafe;
-  --status-in-use-foreground: #1e40af;
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --status-cleared: #007a37;
+  --status-cleared-foreground: #ffffff;
+  --status-supervision: #ffd200;
+  --status-supervision-foreground: #111111;
+  --status-not-cleared: #c8102e;
+  --status-not-cleared-foreground: #ffffff;
+  --status-out-of-service: #111111;
+  --status-out-of-service-foreground: #ffffff;
+  --status-in-use: #005eb8;
+  --status-in-use-foreground: #ffffff;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    color-scheme: light;
+    scrollbar-color: #8c8a82 transparent;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
+    caret-color: var(--sign-blue);
+  }
+  ::selection {
+    background: var(--sign-yellow);
+    color: var(--ink);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  a {
+    text-underline-offset: 0.2em;
+  }
+  table,
+  time,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Display voice: the condensed sign lettering. */
+@utility font-sign {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+}
+
+/* Hazard stripe: only where a machine is out of service. */
+@utility hazard-stripe {
+  background-image: repeating-linear-gradient(-45deg, var(--sign-yellow) 0 0.875rem, var(--ink) 0.875rem 1.75rem);
+}
+
+/* Sign plate: white face, full ink keyline, rounded corners. */
+@utility plate {
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 0.875rem;
+  background-color: var(--card);
+  color: var(--card-foreground);
+}
+
+/*
+ * Signature move: a sign flips on its horizontal axis when its status changes,
+ * one spring with a single overshoot. Reduced motion (below) makes it instant.
+ */
+@keyframes sign-flip {
+  from {
+    transform: perspective(40rem) rotateX(-88deg);
+    opacity: 0.4;
+  }
+  to {
+    transform: perspective(40rem) rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(0.5rem);
+  }
+  to {
+    transform: translateY(0);
   }
 }
 /* Printable sheets (labels, door poster): Letter paper, screen-only UI hidden with `print:hidden`. */

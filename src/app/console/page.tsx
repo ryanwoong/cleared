@@ -20,8 +20,8 @@ export const metadata: Metadata = { title: "Staff console" };
 export default function ConsoleHomePage() {
   return (
     <Gate area="staff">
-      <section aria-labelledby="page-title" className="max-w-5xl space-y-6">
-        <h1 id="page-title" className="text-2xl font-semibold tracking-tight">
+      <section aria-labelledby="page-title" className="space-y-6">
+        <h1 id="page-title" className="font-sign text-[clamp(2.5rem,6vw,4rem)]">
           Staff console
         </h1>
         <Checklist />
@@ -48,12 +48,12 @@ async function Live() {
 function ConsoleSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading the console" className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-24 w-full" />
+          <Skeleton key={i} className="h-44 w-full rounded-[0.875rem]" />
         ))}
       </div>
-      <Skeleton className="h-40 w-full" />
+      <Skeleton className="h-56 w-full rounded-[0.875rem]" />
     </div>
   );
 }

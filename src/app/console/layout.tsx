@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 import { Toaster } from "sonner";
 import { HeaderAccount } from "@/components/layouts/header-account";
-import { ConsoleDrawer, ConsoleSidebar } from "@/components/layouts/console-nav";
+import { ConsoleDrawer, ConsoleNavBar } from "@/components/layouts/console-nav";
 import { DemoBanner } from "@/components/layouts/demo-banner";
+import { Logo } from "@/components/layouts/logo";
 import { LegalFooter } from "@/components/legal/legal-footer";
 import { getOverdueCheckupCount } from "@/data/checkups";
 import { getOpenFaultCount } from "@/data/faults";
@@ -18,8 +19,8 @@ async function navProps() {
   return { isAdmin: admin, faultCount, checkupCount };
 }
 
-async function SidebarForRole() {
-  return <ConsoleSidebar {...await navProps()} />;
+async function NavBarForRole() {
+  return <ConsoleNavBar {...await navProps()} />;
 }
 
 async function DrawerForRole() {
@@ -27,41 +28,40 @@ async function DrawerForRole() {
 }
 
 /**
- * Staff console: sidebar on desktop, drawer on phone. Each page renders
- * `<Gate area="staff">` (or "admin") itself, since this layout doesn't
- * re-render on client navigation.
+ * Staff console: a black top bar with tabs on desktop, a drawer on phone.
+ * Each page renders `<Gate area="staff">` (or "admin") itself, since this
+ * layout doesn't re-render on client navigation.
  */
 export default function ConsoleLayout({ children }: LayoutProps<"/console">) {
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[15rem_minmax(0,1fr)] print:block">
-      <aside className="hidden border-r bg-sidebar md:block print:hidden">
-        <p className="px-6 pt-5 text-base font-semibold">Cleared · Staff</p>
-        <Suspense fallback={<ConsoleSidebar />}>
-          <SidebarForRole />
-        </Suspense>
-      </aside>
-      <div className="flex min-w-0 flex-col">
-        <Suspense fallback={null}>
-          <DemoBanner />
-        </Suspense>
-        <header className="flex h-14 items-center gap-2 border-b px-2 md:px-6 print:hidden">
-          <div className="md:hidden">
-            <Suspense fallback={<ConsoleDrawer />}>
-              <DrawerForRole />
-            </Suspense>
-          </div>
-          <span className="font-semibold md:hidden">Cleared · Staff</span>
-          <div className="ml-auto">
-            <Suspense fallback={null}>
-              <HeaderAccount side="console" />
-            </Suspense>
-          </div>
-        </header>
-        <main id="main" className="flex-1 px-4 py-6 md:px-8 print:p-0">
-          {children}
-        </main>
-        <LegalFooter className="border-t px-4 md:px-8 print:hidden" />
-      </div>
+    <div className="flex min-h-dvh flex-col">
+      <Suspense fallback={null}>
+        <DemoBanner />
+      </Suspense>
+      <header className="sticky top-0 z-30 flex h-[4.25rem] items-stretch gap-3 bg-ink px-2 text-white sm:px-4 xl:gap-6 xl:px-8 print:hidden">
+        <div className="flex items-center xl:hidden">
+          <Suspense fallback={<ConsoleDrawer />}>
+            <DrawerForRole />
+          </Suspense>
+        </div>
+        <div className="flex shrink-0 items-center">
+          <Logo href="/console" suffix="Staff" />
+        </div>
+        <div className="hidden min-w-0 flex-1 xl:block">
+          <Suspense fallback={<ConsoleNavBar />}>
+            <NavBarForRole />
+          </Suspense>
+        </div>
+        <div className="ml-auto flex shrink-0 items-center">
+          <Suspense fallback={null}>
+            <HeaderAccount side="console" />
+          </Suspense>
+        </div>
+      </header>
+      <main id="main" className="mx-auto w-full max-w-[90rem] flex-1 px-4 py-8 sm:px-6 xl:px-8 print:p-0">
+        {children}
+      </main>
+      <LegalFooter className="mx-auto w-full max-w-[90rem] border-t border-border px-4 sm:px-6 xl:px-8 print:hidden" />
       <Toaster position="top-center" richColors={false} closeButton />
     </div>
   );

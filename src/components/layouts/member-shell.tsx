@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { LegalFooter } from "@/components/legal/legal-footer";
+import { Logo } from "@/components/layouts/logo";
 import { MemberTabBar } from "@/components/layouts/member-tab-bar";
 
 /**
@@ -20,19 +20,17 @@ export function MemberShell({
   return (
     <div className="flex min-h-dvh flex-col">
       {banner}
-      <header className="border-b">
-        <div className="mx-auto flex h-14 w-full max-w-2xl items-center justify-between gap-2 px-4">
-          <Link href="/machines" prefetch={false} className="text-lg font-semibold">
-            Cleared
-          </Link>
+      <header className="sticky top-0 z-30 bg-ink text-white print:hidden">
+        <div className="mx-auto flex h-16 w-full max-w-2xl items-center justify-between gap-2 px-4">
+          <Logo href="/machines" />
           {headerEnd}
         </div>
       </header>
-      <main id="main" className="mx-auto w-full max-w-2xl flex-1 px-4 pt-6 pb-10">
+      <main id="main" className="mx-auto w-full max-w-2xl flex-1 px-4 pt-7 pb-12">
         {children}
       </main>
       {/* Bottom padding keeps the links clear of the fixed tab bar. */}
-      <LegalFooter className="mx-auto w-full max-w-2xl border-t px-4 pt-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))]" />
+      <LegalFooter className="mx-auto w-full max-w-2xl border-t px-4 pt-1 pb-[calc(5rem+env(safe-area-inset-bottom))]" />
       <MemberTabBar />
     </div>
   );
