@@ -176,6 +176,8 @@ Seed data is clearly fake ("Demo …" names, `@example.com` addresses) and **nev
 ```bash
 npm run db:seed                              # local: loads the demo catalog; demo members/history only if the name starts with "Demo"
 npm run db:seed -- --reset --i-know          # local: copies the D1 files to ~/cleared-backups/, clears, re-seeds
+npm run db:seed -- --fresh --i-know          # local: copies the D1 files to ~/cleared-backups/, wipes everything (accounts, settings), seeds a full demo
+npm run db:seed -- --remote --fresh --i-know # deployment: exports a backup, wipes everything, seeds a full demo with the PUBLIC password in docs/demo-accounts.md
 bash scripts/reset-demo.sh --i-know          # deployment: exports ~/cleared-backups/cleared-<stamp>-before-reset.sql, clears, re-seeds
 ```
 

@@ -13,21 +13,24 @@ export const EXPIRING_SOON_DAYS = 30;
 /* ------------------------------------------------------------- arguments */
 
 const USAGE =
-  "Usage: npm run db:seed [-- --persist-to <dir>] [-- --reset --i-know] [-- --backup-dir <dir>]\n" +
+  "Usage: npm run db:seed [-- --remote] [-- --persist-to <dir>] [-- --reset --i-know | --fresh --i-know] [-- --backup-dir <dir>]\n" +
   "       (the deployment: bash scripts/reset-demo.sh --i-know)";
 export const SEED_USAGE = USAGE;
 
 /**
- * Parse the seed's flags. Returns `{ remote, persistTo, reset, iKnow, backupDir }`
+ * Parse the seed's flags. Returns `{ remote, persistTo, reset, fresh, iKnow, backupDir }`
  * or `{ error }`. Unknown arguments are rejected, so a typo can't change what runs.
+ * `--fresh` wipes the whole database (accounts and settings too) and seeds a
+ * complete demo makerspace; with `--remote`, the deployment's.
  */
 export function parseSeedArgs(argv) {
-  const out = { remote: false, persistTo: null, reset: false, iKnow: false, backupDir: null };
+  const out = { remote: false, persistTo: null, reset: false, fresh: false, iKnow: false, backupDir: null };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--remote") out.remote = true;
     else if (arg === "--local") out.remote = false;
     else if (arg === "--reset") out.reset = true;
+    else if (arg === "--fresh") out.fresh = true;
     else if (arg === "--i-know") out.iKnow = true;
     else if (arg === "--persist-to" || arg === "--backup-dir") {
       const value = argv[i + 1];
@@ -39,7 +42,8 @@ export function parseSeedArgs(argv) {
   }
   if (argv.includes("--remote") && argv.includes("--local")) return { error: "Use --local or --remote, not both" };
   if (out.remote && out.persistTo) return { error: "--persist-to is for the local database only" };
-  if (out.iKnow && !out.reset) return { error: "--i-know only goes with --reset" };
+  if (out.reset && out.fresh) return { error: "Use --reset or --fresh, not both" };
+  if (out.iKnow && !out.reset && !out.fresh) return { error: "--i-know only goes with --reset or --fresh" };
   return out;
 }
 
@@ -165,6 +169,14 @@ export const MEMBERS = [
     suspended: { daysAgo: 3, by: "staff1", reason: "Demo: left the laser running unattended. Talk to staff to be reinstated." },
   },
 ];
+
+/**
+ * The admin account `--fresh` creates in place of first-run Setup. An admin, so
+ * DEMO_MEMBER_IDS (and therefore a `--reset`) never matches it.
+ */
+export const FRESH_ADMIN = { name: "Demo Admin", email: "demo.admin@example.com" };
+/** The makerspace `--fresh` creates (starts with "Demo", so the demo data loads and the banner shows). */
+export const FRESH_MAKERSPACE = { name: "Demo Makerspace", timezone: "America/Edmonton" };
 
 /**
  * Sign-offs. Expiry is computed like the app does (granted_at + the
@@ -590,6 +602,59 @@ export function buildResetSql() {
     `DELETE FROM members WHERE id IN ${DEMO_MEMBER_IDS} AND ${G};`,
     // The demo users are now without a membership (session/account rows cascade).
     `DELETE FROM "user" WHERE lower(email) LIKE '%@example.com' AND substr(name, 1, 5) = 'Demo ' AND id NOT IN (SELECT auth_user_id FROM members) AND ${G};`,
+  ].join("\n");
+}
+
+/**
+ * `--fresh`: delete every row in every table, accounts and settings included
+ * (only `app_meta` and wrangler's migration table stay). The service history's
+ * delete trigger is dropped right before its DELETE and re-created right after,
+ * in the same file (one transaction), as in buildResetSql().
+ */
+export function buildWipeSql() {
+  return [
+    "DELETE FROM faults;",
+    "DROP TRIGGER IF EXISTS `service_records_no_delete`;",
+    "DELETE FROM service_records WHERE corrects_record_id IS NOT NULL;",
+    "DELETE FROM service_records;",
+    TRIGGER_SQL.service_records_no_delete,
+    "DELETE FROM checkups;",
+    "DELETE FROM machine_sessions;",
+    "DELETE FROM grants;",
+    "DELETE FROM machine_requirements;",
+    "DELETE FROM machines;",
+    "DELETE FROM certifications;",
+    "DELETE FROM rooms;",
+    "UPDATE members SET status_changed_by_member_id = NULL;",
+    "DELETE FROM members;",
+    "DELETE FROM session;",
+    "DELETE FROM account;",
+    "DELETE FROM verification;",
+    'DELETE FROM "user";',
+    "DELETE FROM rate_limit;",
+    "DELETE FROM settings;",
+  ].join("\n");
+}
+
+/**
+ * `--fresh`: wipe everything, then create what first-run Setup would (the
+ * settings row and an admin who can sign in), then the full demo seed.
+ * `hashes` must hold a password hash for FRESH_ADMIN and every demo member.
+ */
+/** @param {number} now @param {{ hashes: Map<string, string>, ids?: { uuid: () => string, token: () => string } }} options */
+export function buildFreshSql(now, { hashes, ids = defaultIds() }) {
+  const a = FRESH_ADMIN;
+  const hash = hashes.get(a.email);
+  if (!hash || !/^[0-9a-f]+:[0-9a-f]+$/.test(hash)) throw new Error("Missing or malformed admin password hash");
+  const t = now - 420 * DAY_MS;
+  const userId = q(ids.uuid());
+  return [
+    buildWipeSql(),
+    `INSERT INTO settings (id, name, timezone, member_join_token, join_token_rotated_at, data_version, created_at, updated_at) VALUES ('singleton', ${q(FRESH_MAKERSPACE.name)}, ${q(FRESH_MAKERSPACE.timezone)}, ${q(ids.token())}, ${t}, 1, ${t}, ${t});`,
+    `INSERT INTO "user" (id, name, email, email_verified, image, created_at, updated_at) VALUES (${userId}, ${q(a.name)}, ${q(a.email)}, 0, NULL, ${t}, ${t});`,
+    `INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES (${q(ids.uuid())}, ${userId}, 'credential', ${userId}, ${q(hash)}, ${t}, ${t});`,
+    `INSERT INTO members (id, auth_user_id, email, display_name, role, status, created_at, updated_at) VALUES (${q(ids.uuid())}, ${userId}, ${q(a.email)}, ${q(a.name)}, 'admin', 'active', ${t}, ${t});`,
+    buildSeedSql(now, { demo: true, hashes, ids }),
   ].join("\n");
 }
 

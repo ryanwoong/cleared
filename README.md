@@ -83,6 +83,8 @@ Logs, rollback and backups: [`docs/runbook.md`](docs/runbook.md). **Database bac
 | [`docs/phases/`](docs/phases/README.md) | Build order, one document per phase |
 | [`docs/setup-and-deploy.md`](docs/setup-and-deploy.md) | Running locally and deploying |
 | [`docs/runbook.md`](docs/runbook.md) | Operating a deployment: deploys, rollback, restore |
+| [`docs/seed.md`](docs/seed.md) | Loading demo data (`npm run db:seed`) |
+| [`docs/demo-accounts.md`](docs/demo-accounts.md) | The seeded demo accounts, their password and what each one shows |
 | [`drizzle/README.md`](drizzle/README.md) | Migration workflow and review checklist |
 | [`AGENTS.md`](AGENTS.md) | Project rules for contributors and coding agents |
 

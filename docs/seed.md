@@ -6,7 +6,7 @@ Clearly fake data for trying Cleared out and for the live demo (Phase 7 §3.7, P
 
 ## What it loads
 
-The seed needs a finished **Setup** (the settings row). What it loads depends on the makerspace name:
+The seed needs a finished **Setup** (the settings row), except `--fresh` (below), which creates it. What it loads depends on the makerspace name:
 
 | Makerspace name | Loaded |
 |---|---|
@@ -41,7 +41,7 @@ Locally, every demo member gets an email + password account, hashed on your comp
 cleared-demo-pass
 ```
 
-This password is public (it's in this repository): **it's only ever used on a local database.** On the deployment, demo members get **no** account and can't sign in; they only populate history. Live-demo accounts on the deployment are real accounts you sign up yourself (P7-74).
+This password is public (it's in this repository). A plain seed or `--reset` on the deployment gives demo members **no** account: they only populate history. Only `--remote --fresh` (below) creates sign-in accounts on a deployment, with this same public password. Every account and what it shows: [`demo-accounts.md`](demo-accounts.md).
 
 ## Commands
 
@@ -49,9 +49,21 @@ This password is public (it's in this repository): **it's only ever used on a lo
 npm run db:seed                               # your local D1 (.wrangler/state)
 npm run db:seed -- --persist-to <dir>         # another local D1 state directory
 npm run db:seed -- --reset --i-know           # back up, clear and re-seed the local D1
+npm run db:seed -- --fresh --i-know           # back up, wipe EVERYTHING locally and seed a complete demo (no Setup needed)
+npm run db:seed -- --remote --fresh --i-know  # the same on the deployment (public password: demo deployments only)
 bash scripts/reset-demo.sh --i-know           # the same on the deployment
 npm run db:seed -- --remote                   # add missing demo data on the deployment (no reset; "Demo" name only)
 ```
+
+## Starting fresh
+
+`npm run db:seed -- --fresh --i-know` gives you a complete demo from any database, even one where Setup was never done (add `--remote` for the deployment):
+
+1. **Backs up** to `~/cleared-backups/` (as a reset does).
+2. **Deletes every row in every table**, including every account, session and the makerspace settings, whatever the makerspace is called (only `app_meta` and the migrations table stay). Your own account goes too.
+3. **Creates** the makerspace *Demo Makerspace* (America/Edmonton) and an admin, **Demo Admin** (`demo.admin@example.com`), in place of Setup, then loads everything above.
+
+All of it is one transaction. Everyone, the admin included, signs in with the password above, listed in [`demo-accounts.md`](demo-accounts.md). **On a deployment that makes the admin's password public**: use it only on a throwaway demo deployment, and set the deployment up fresh before real use.
 
 ## Resetting
 
