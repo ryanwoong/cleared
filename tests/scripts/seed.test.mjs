@@ -11,6 +11,8 @@ import {
   GRANTS,
   MEMBERS,
   SERVICE_RECORDS,
+  SESSIONS,
+  MACHINES,
   SUMMARY_SQL,
   TRIGGER_NAMES,
   addMonthsUtc,
@@ -77,7 +79,8 @@ test("backups never go inside the repository", () => {
 });
 
 test("every seeded person is a Demo @example.com member", () => {
-  assert.equal(MEMBERS.length, 8);
+  assert.equal(MEMBERS.length, 9);
+  assert.deepEqual(MEMBERS.filter((m) => m.suspended).map((m) => m.key), ["student6"]);
   for (const m of MEMBERS) {
     assert.match(m.name, /^Demo /);
     assert.match(m.email, /^[a-z0-9.]+@example\.com$/);
@@ -102,6 +105,23 @@ test("grants: a mix of valid, expiring soon and expired, with the certifications
   }
   assert.equal(addMonthsUtc(Date.UTC(2026, 0, 31), 1), Date.UTC(2026, 1, 28));
   assert.equal(addMonthsUtc(Date.UTC(2026, 2, 31), -1), Date.UTC(2026, 1, 28));
+});
+
+test("sessions: every user holds a valid grant; open ones are in use now", () => {
+  for (const u of SESSIONS) {
+    const machine = MACHINES.find((m) => m.name === u.machine);
+    assert.ok(machine, u.machine);
+    assert.ok(u.minutes <= 240);
+    assert.equal(Boolean(u.supervised), Boolean(machine.supervised), `${u.key} acknowledges supervision only on supervised machines`);
+    for (const cert of machine.requires) {
+      const g = GRANTS.find((x) => x.member === u.member && x.cert === cert);
+      assert.ok(g, `${u.key}: ${u.member} holds ${cert}`);
+      assert.ok(["valid", "expiring"].includes(grantState(NOW - u.startedMinutesAgo * 60000, g)), `${u.key}: grant valid then`);
+    }
+    if (!u.ended) assert.ok(u.startedMinutesAgo < u.minutes, `${u.key} hasn't run past its expected end`);
+    if (!u.ended) assert.notEqual(u.machine, "Band Saw", "not on the out-of-service machine");
+  }
+  assert.equal(new Set(SESSIONS.filter((u) => !u.ended).map((u) => u.machine)).size, SESSIONS.filter((u) => !u.ended).length);
 });
 
 test("history: 6 records with a vendor repair and a correction, 3 checkups", () => {
@@ -238,9 +258,12 @@ test("SQLite: seed, seed again, reset and re-seed; real accounts survive", { ski
       certifications: 4,
       machines: 10,
       out_of_service: 1,
-      demo_members: 8,
-      demo_sign_ins: 8,
-      grants: 21,
+      demo_members: 9,
+      demo_sign_ins: 9,
+      suspended: 1,
+      grants: 22,
+      sessions: 10,
+      open_sessions: 3,
       service_records: 6,
       checkups: 3,
       open_faults: 1,
@@ -281,7 +304,7 @@ test("SQLite: seed, seed again, reset and re-seed; real accounts survive", { ski
   assert.equal(count(db, "SELECT status_changed_by_member_id FROM members WHERE id = 'm-real'"), null);
   assert.equal(count(db, "SELECT count(*) FROM account WHERE id = 'a-real'"), 1);
   assert.deepEqual(db.prepare("SELECT id FROM session").all().map((r) => r.id), ["s-real"]);
-  assert.equal(count(db, `SELECT count(*) FROM "user" WHERE email LIKE 'demo.%@example.com'`), 8);
+  assert.equal(count(db, `SELECT count(*) FROM "user" WHERE email LIKE 'demo.%@example.com'`), 9);
   assert.throws(() => db.exec("DELETE FROM service_records"), /append-only/);
 });
 

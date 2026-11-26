@@ -170,7 +170,8 @@ async function main() {
     `db:seed: ${args.reset ? "reset and re-seeded" : "seeded"} ${where}: ` +
       `${summary.rooms} rooms, ${summary.certifications} certifications, ${summary.machines} machines ` +
       `(${summary.out_of_service} out of service), ${summary.demo_members} demo members ` +
-      `(${summary.demo_sign_ins} can sign in), ${summary.grants} grants, ${summary.service_records} service records, ` +
+      `(${summary.demo_sign_ins} can sign in, ${summary.suspended} suspended), ${summary.grants} grants, ` +
+      `${summary.sessions} machine sessions (${summary.open_sessions} in use now), ${summary.service_records} service records, ` +
       `${summary.checkups} checkups, ${summary.open_faults} open faults. Existing names were skipped.`,
   );
   if (!demo) {

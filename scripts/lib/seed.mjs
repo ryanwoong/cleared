@@ -156,6 +156,14 @@ export const MEMBERS = [
   { key: "staff1", name: "Demo Staff 1", email: "demo.staff1@example.com", role: "staff", joinedDaysAgo: 400 },
   { key: "staff2", name: "Demo Staff 2", email: "demo.staff2@example.com", role: "staff", joinedDaysAgo: 400 },
   { key: "tech", name: "Demo Technician", email: "demo.technician@example.com", role: "staff", joinedDaysAgo: 400 },
+  {
+    key: "student6",
+    name: "Demo Student 6",
+    email: "demo.student6@example.com",
+    role: "member",
+    joinedDaysAgo: 200,
+    suspended: { daysAgo: 3, by: "staff1", reason: "Demo: left the laser running unattended. Talk to staff to be reinstated." },
+  },
 ];
 
 /**
@@ -191,6 +199,32 @@ export const GRANTS = [
   { member: "student4", cert: LATHE, by: "staff1", grantedDaysAgo: 172 }, // expiring soon
   { member: "student5", cert: PRINT, by: "tech", grantedDaysAgo: 20 },
   { member: "student5", cert: LATHE, by: "staff1", grantedDaysAgo: 220 }, // expired
+  { member: "student6", cert: LASER, by: "staff1", grantedDaysAgo: 150 }, // valid, but the member is suspended
+];
+
+/**
+ * Machine sessions (Phase 4). Open ones (no `ended`) are in use right now;
+ * every member holds a valid grant for the machine. `ended.reason` is one of
+ * SESSION_END_REASONS; an `expired` session ends at its expected end.
+ */
+export const SESSIONS = [
+  { key: "u1", machine: "Laser Cutter A", member: "student1", startedMinutesAgo: 12, minutes: 30 },
+  { key: "u2", machine: "Prusa MK4 #2", member: "student5", startedMinutesAgo: 50, minutes: 120 },
+  { key: "u3", machine: "Wood Lathe", member: "student4", startedMinutesAgo: 25, minutes: 90, supervised: true },
+  { key: "u4", machine: "Table Saw", member: "student1", startedMinutesAgo: 2 * 1440, minutes: 60, ended: { afterMinutes: 45, reason: "user" } },
+  { key: "u5", machine: "Laser Cutter B", member: "student2", startedMinutesAgo: 3 * 1440, minutes: 30, ended: { afterMinutes: 28, reason: "user" } },
+  { key: "u6", machine: "Prusa MK4 #1", member: "student3", startedMinutesAgo: 1440, minutes: 120, ended: { afterMinutes: 120, reason: "expired" } },
+  {
+    key: "u7",
+    machine: "Drill Press",
+    member: "student4",
+    startedMinutesAgo: 5 * 1440,
+    minutes: 30,
+    ended: { afterMinutes: 50, reason: "staff", by: "staff2" },
+  },
+  { key: "u8", machine: "Laser Cutter A", member: "staff2", startedMinutesAgo: 6 * 1440, minutes: 30, ended: { afterMinutes: 25, reason: "user" } },
+  { key: "u9", machine: "Metal Lathe", member: "tech", startedMinutesAgo: 8 * 1440, minutes: 90, supervised: true, ended: { afterMinutes: 80, reason: "user" } },
+  { key: "u10", machine: "Prusa MK4 #2", member: "student1", startedMinutesAgo: 9 * 1440, minutes: 120, ended: { afterMinutes: 95, reason: "user" } },
 ];
 
 /** Checkups: next due = latest linked scheduled_checkup record (or created_at) + interval (Phase 6). */
@@ -420,11 +454,13 @@ export function buildDemoSql(now, { hashes = null, ids = defaultIds() } = {}) {
   const ago = (days) => now - days * DAY_MS;
   const lines = [];
 
-  for (const m of MEMBERS) {
+  // Suspended members last: their suspension points at a staff member inserted before them.
+  for (const m of [...MEMBERS.filter((x) => !x.suspended), ...MEMBERS.filter((x) => x.suspended)]) {
     const t = ago(m.joinedDaysAgo);
+    const s = m.suspended;
     lines.push(
       `INSERT INTO "user" (id, name, email, email_verified, image, created_at, updated_at) SELECT ${q(ids.uuid())}, ${q(m.name)}, ${q(m.email)}, 0, NULL, ${t}, ${t} WHERE NOT EXISTS (SELECT 1 FROM "user" WHERE email = ${q(m.email)}) AND ${G};`,
-      `INSERT INTO members (id, auth_user_id, email, display_name, role, status, created_at, updated_at) SELECT ${q(ids.uuid())}, u.id, ${q(m.email)}, ${q(m.name)}, ${q(m.role)}, 'active', ${t}, ${t} FROM "user" u WHERE u.email = ${q(m.email)} AND NOT EXISTS (SELECT 1 FROM members WHERE auth_user_id = u.id OR email = ${q(m.email)}) AND ${G};`,
+      `INSERT INTO members (id, auth_user_id, email, display_name, role, status, status_changed_at, status_changed_by_member_id, suspension_reason, created_at, updated_at) SELECT ${q(ids.uuid())}, u.id, ${q(m.email)}, ${q(m.name)}, ${q(m.role)}, ${s ? "'suspended'" : "'active'"}, ${s ? ago(s.daysAgo) : "NULL"}, ${s ? memberId(s.by) : "NULL"}, ${s ? q(s.reason) : "NULL"}, ${t}, ${s ? ago(s.daysAgo) : t} FROM "user" u WHERE u.email = ${q(m.email)} AND NOT EXISTS (SELECT 1 FROM members WHERE auth_user_id = u.id OR email = ${q(m.email)}) AND ${G};`,
     );
     if (hashes) {
       const hash = hashes.get(m.email);
@@ -443,6 +479,22 @@ export function buildDemoSql(now, { hashes = null, ids = defaultIds() } = {}) {
       `INSERT INTO grants (id, member_id, certification_id, granted_by_member_id, granted_at, expires_at, client_request_id, revoked_at, revoked_by_member_id, revoke_reason, created_at) SELECT ${q(ids.uuid())}, ${memberId(g.member)}, ${certId(g.cert)}, ${memberId(g.by)}, ${grantedAt}, ${num(expiresAt)}, ${crid}, ${r ? ago(r.daysAgo) : "NULL"}, ${r ? memberId(r.by) : "NULL"}, ${r ? q(r.reason) : "NULL"}, ${grantedAt} WHERE ${memberId(g.member)} IS NOT NULL AND ${memberId(g.by)} IS NOT NULL AND ${certId(g.cert)} IS NOT NULL AND NOT EXISTS (SELECT 1 FROM grants WHERE client_request_id = ${crid}) AND ${G};`,
     );
   });
+
+  const MIN = 60 * 1000;
+  for (const u of SESSIONS) {
+    const startedAt = now - u.startedMinutesAgo * MIN;
+    const expectedEndAt = startedAt + u.minutes * MIN;
+    const e = u.ended;
+    const endedAt = e ? (e.reason === "expired" ? expectedEndAt : startedAt + e.afterMinutes * MIN) : null;
+    const crid = q(`demo-seed-${u.key}`);
+    // An open session only on an available machine nobody else is using (the one-open-session index).
+    const openGuard = e
+      ? ""
+      : ` AND NOT EXISTS (SELECT 1 FROM machine_sessions WHERE machine_id = ${machineId(u.machine)} AND ended_at IS NULL) AND EXISTS (SELECT 1 FROM machines WHERE id = ${machineId(u.machine)} AND status = 'available')`;
+    lines.push(
+      `INSERT INTO machine_sessions (id, machine_id, member_id, started_at, expected_end_at, ended_at, end_reason, ended_by_member_id, supervision_acknowledged, client_request_id, created_at) SELECT ${q(ids.uuid())}, ${machineId(u.machine)}, ${memberId(u.member)}, ${startedAt}, ${expectedEndAt}, ${num(endedAt)}, ${e ? q(e.reason) : "NULL"}, ${e?.by ? memberId(e.by) : "NULL"}, ${u.supervised ? 1 : 0}, ${crid}, ${startedAt} WHERE ${machineId(u.machine)} IS NOT NULL AND ${memberId(u.member)} IS NOT NULL${e?.by ? ` AND ${memberId(e.by)} IS NOT NULL` : ""}${openGuard} AND NOT EXISTS (SELECT 1 FROM machine_sessions WHERE client_request_id = ${crid}) AND ${G};`,
+    );
+  }
 
   for (const c of CHECKUPS) {
     const t = ago(c.createdDaysAgo);
@@ -530,8 +582,9 @@ export function buildResetSql() {
     `DELETE FROM machines WHERE ${G};`,
     `DELETE FROM certifications WHERE ${G};`,
     `DELETE FROM rooms WHERE ${G};`,
-    // A real member suspended or reactivated by a demo staff member keeps the change, not the link.
-    `UPDATE members SET status_changed_by_member_id = NULL WHERE status_changed_by_member_id IN ${DEMO_MEMBER_IDS} AND id NOT IN ${DEMO_MEMBER_IDS} AND ${G};`,
+    // A member suspended or reactivated by a demo staff member keeps the change, not the link
+    // (demo members too: RESTRICT is checked row by row, so the DELETE below can't rely on order).
+    `UPDATE members SET status_changed_by_member_id = NULL WHERE status_changed_by_member_id IN ${DEMO_MEMBER_IDS} AND ${G};`,
     `DELETE FROM session WHERE user_id IN ${DEMO_USER_IDS} AND ${G};`,
     `DELETE FROM account WHERE user_id IN ${DEMO_USER_IDS} AND ${G};`,
     `DELETE FROM members WHERE id IN ${DEMO_MEMBER_IDS} AND ${G};`,
@@ -548,7 +601,10 @@ export const SUMMARY_SQL = `SELECT
   (SELECT count(*) FROM machines WHERE status = 'out_of_service') AS out_of_service,
   (SELECT count(*) FROM members WHERE id IN ${DEMO_MEMBER_IDS}) AS demo_members,
   (SELECT count(*) FROM account WHERE provider_id = 'credential' AND user_id IN ${DEMO_USER_IDS}) AS demo_sign_ins,
+  (SELECT count(*) FROM members WHERE status = 'suspended') AS suspended,
   (SELECT count(*) FROM grants) AS grants,
+  (SELECT count(*) FROM machine_sessions) AS sessions,
+  (SELECT count(*) FROM machine_sessions WHERE ended_at IS NULL) AS open_sessions,
   (SELECT count(*) FROM service_records) AS service_records,
   (SELECT count(*) FROM checkups) AS checkups,
   (SELECT count(*) FROM faults WHERE status = 'open') AS open_faults,

@@ -21,10 +21,12 @@ Rename the makerspace in **Settings** (or pick *Demo Makerspace* at Setup) to ge
   | Name | Email | Role |
   |---|---|---|
   | Demo Student 1–5 | `demo.student1@example.com` … `demo.student5@example.com` | member |
+  | Demo Student 6 (**suspended** by Demo Staff 1) | `demo.student6@example.com` | member |
   | Demo Staff 1, Demo Staff 2 | `demo.staff1@example.com`, `demo.staff2@example.com` | staff |
   | Demo Technician | `demo.technician@example.com` | staff |
 
-- **Grants:** 21 sign-offs with expiry computed like the app does (granted date + the certification's validity months): mostly valid, two expiring within 30 days (Demo Student 2's laser, Demo Student 4's lathe), two expired (Demo Student 3's laser, Demo Student 5's lathe) and one revoked (Demo Student 3's wood shop).
+- **Grants:** 22 sign-offs with expiry computed like the app does (granted date + the certification's validity months): mostly valid, two expiring within 30 days (Demo Student 2's laser, Demo Student 4's lathe), two expired (Demo Student 3's laser, Demo Student 5's lathe) and one revoked (Demo Student 3's wood shop).
+- **Machine sessions:** 10. Three are **in use right now** (Laser Cutter A, Prusa MK4 #2 and the supervised Wood Lathe), and seven ended over the past nine days (by the member, by staff, or expired).
 - **Service history:** 6 records on 4 machines: two scheduled checkups, a **vendor repair** on Laser Cutter A (by "Demo Laser Service (vendor)", which resolved a reported fault), an inspection on the Wood Lathe and a **correction** of it, and a repair on the Band Saw.
 - **Checkups:** 3 (*Lens and mirror clean* on Laser Cutter A: OK; *Blade, fence and riving knife check* on the Table Saw: **overdue**; *Nozzle and bed check* on Prusa MK4 #1: due soon).
 - **Machine status:** the **Band Saw is out of service** (maintenance) with a public note and an expected-back date; one open fault (not out of service) on Laser Cutter B.
