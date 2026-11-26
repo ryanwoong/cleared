@@ -8,9 +8,12 @@ import {
   CHECKUPS,
   DAY_MS,
   DEMO_GUARD,
+  FRESH_ADMIN,
   GRANTS,
   MEMBERS,
   SERVICE_RECORDS,
+  SESSIONS,
+  MACHINES,
   SUMMARY_SQL,
   TRIGGER_NAMES,
   addMonthsUtc,
@@ -18,6 +21,7 @@ import {
   backupStamp,
   buildCatalogSql,
   buildDemoSql,
+  buildFreshSql,
   buildResetSql,
   buildSeedSql,
   grantState,
@@ -33,14 +37,18 @@ import { repo } from "./helpers.mjs";
 const NOW = Date.UTC(2026, 10, 23, 12, 0, 0);
 
 test("parses the seed's flags and rejects anything else", () => {
-  assert.deepEqual(parseSeedArgs([]), { remote: false, persistTo: null, reset: false, iKnow: false, backupDir: null });
+  assert.deepEqual(parseSeedArgs([]), { remote: false, persistTo: null, reset: false, fresh: false, iKnow: false, backupDir: null });
   assert.deepEqual(parseSeedArgs(["--persist-to", "/x", "--reset", "--i-know", "--backup-dir", "/b"]), {
     remote: false,
     persistTo: "/x",
     reset: true,
+    fresh: false,
     iKnow: true,
     backupDir: "/b",
   });
+  assert.equal(parseSeedArgs(["--fresh", "--i-know"]).fresh, true);
+  assert.equal(parseSeedArgs(["--fresh", "--remote", "--i-know"]).remote, true);
+  assert.ok(parseSeedArgs(["--fresh", "--reset", "--i-know"]).error);
   assert.equal(parseSeedArgs(["--remote", "--reset", "--i-know"]).remote, true);
   assert.ok(parseSeedArgs(["--wipe"]).error);
   assert.ok(parseSeedArgs(["extra"]).error);
@@ -77,8 +85,9 @@ test("backups never go inside the repository", () => {
 });
 
 test("every seeded person is a Demo @example.com member", () => {
-  assert.equal(MEMBERS.length, 8);
-  for (const m of MEMBERS) {
+  assert.equal(MEMBERS.length, 9);
+  assert.deepEqual(MEMBERS.filter((m) => m.suspended).map((m) => m.key), ["student6"]);
+  for (const m of [...MEMBERS, FRESH_ADMIN]) {
     assert.match(m.name, /^Demo /);
     assert.match(m.email, /^[a-z0-9.]+@example\.com$/);
   }
@@ -102,6 +111,23 @@ test("grants: a mix of valid, expiring soon and expired, with the certifications
   }
   assert.equal(addMonthsUtc(Date.UTC(2026, 0, 31), 1), Date.UTC(2026, 1, 28));
   assert.equal(addMonthsUtc(Date.UTC(2026, 2, 31), -1), Date.UTC(2026, 1, 28));
+});
+
+test("sessions: every user holds a valid grant; open ones are in use now", () => {
+  for (const u of SESSIONS) {
+    const machine = MACHINES.find((m) => m.name === u.machine);
+    assert.ok(machine, u.machine);
+    assert.ok(u.minutes <= 240);
+    assert.equal(Boolean(u.supervised), Boolean(machine.supervised), `${u.key} acknowledges supervision only on supervised machines`);
+    for (const cert of machine.requires) {
+      const g = GRANTS.find((x) => x.member === u.member && x.cert === cert);
+      assert.ok(g, `${u.key}: ${u.member} holds ${cert}`);
+      assert.ok(["valid", "expiring"].includes(grantState(NOW - u.startedMinutesAgo * 60000, g)), `${u.key}: grant valid then`);
+    }
+    if (!u.ended) assert.ok(u.startedMinutesAgo < u.minutes, `${u.key} hasn't run past its expected end`);
+    if (!u.ended) assert.notEqual(u.machine, "Band Saw", "not on the out-of-service machine");
+  }
+  assert.equal(new Set(SESSIONS.filter((u) => !u.ended).map((u) => u.machine)).size, SESSIONS.filter((u) => !u.ended).length);
 });
 
 test("history: 6 records with a vendor repair and a correction, 3 checkups", () => {
@@ -238,9 +264,12 @@ test("SQLite: seed, seed again, reset and re-seed; real accounts survive", { ski
       certifications: 4,
       machines: 10,
       out_of_service: 1,
-      demo_members: 8,
-      demo_sign_ins: 8,
-      grants: 21,
+      demo_members: 9,
+      demo_sign_ins: 9,
+      suspended: 1,
+      grants: 22,
+      sessions: 10,
+      open_sessions: 3,
       service_records: 6,
       checkups: 3,
       open_faults: 1,
@@ -281,7 +310,47 @@ test("SQLite: seed, seed again, reset and re-seed; real accounts survive", { ski
   assert.equal(count(db, "SELECT status_changed_by_member_id FROM members WHERE id = 'm-real'"), null);
   assert.equal(count(db, "SELECT count(*) FROM account WHERE id = 'a-real'"), 1);
   assert.deepEqual(db.prepare("SELECT id FROM session").all().map((r) => r.id), ["s-real"]);
-  assert.equal(count(db, `SELECT count(*) FROM "user" WHERE email LIKE 'demo.%@example.com'`), 8);
+  assert.equal(count(db, `SELECT count(*) FROM "user" WHERE email LIKE 'demo.%@example.com'`), 9);
+  assert.throws(() => db.exec("DELETE FROM service_records"), /append-only/);
+});
+
+test("SQLite: --fresh wipes everything, accounts and settings included, then seeds a complete demo", { skip: !sqlite }, () => {
+  const db = freshDb(); // a real "Campus Makerspace" with its admin
+  db.exec(`INSERT INTO session (id, expires_at, token, created_at, updated_at, user_id) VALUES ('s-admin', 9, 't1', 1, 1, 'u-admin');
+    INSERT INTO verification (id, identifier, value, expires_at) VALUES ('v1', 'x', 'y', 9);
+    INSERT INTO rate_limit (id, key, count, last_request) VALUES ('r1', 'k', 1, 1);`);
+  db.exec(buildSeedSql(NOW, { demo: false })); // some catalog rows to wipe
+  const freshHashes = new Map([...hashes, [FRESH_ADMIN.email, "ab12:cd34"]]);
+  assert.throws(() => buildFreshSql(NOW, { hashes }), /admin password hash/);
+
+  db.exec("BEGIN");
+  db.exec(buildFreshSql(NOW, { hashes: freshHashes }));
+  db.exec("COMMIT");
+  assert.equal(count(db, "SELECT name FROM settings"), "Demo Makerspace");
+  assert.equal(count(db, `SELECT count(*) FROM "user" WHERE id = 'u-admin'`), 0, "the old accounts are gone");
+  assert.equal(count(db, "SELECT count(*) FROM session"), 0);
+  assert.equal(count(db, "SELECT count(*) FROM verification"), 0);
+  assert.equal(count(db, "SELECT count(*) FROM rate_limit"), 0);
+  assert.equal(count(db, `SELECT count(*) FROM members m JOIN account a ON a.user_id = m.auth_user_id WHERE m.role = 'admin' AND m.email = '${FRESH_ADMIN.email}'`), 1);
+  assert.equal(count(db, "SELECT count(*) FROM members"), 10);
+  const s = summary(db);
+  assert.equal(s.machines, 10);
+  assert.equal(s.demo_sign_ins, 9);
+  assert.equal(s.grants, 22);
+  assert.equal(s.open_sessions, 3);
+  assert.equal(s.triggers, 2);
+
+  // Again on top of itself, and a --reset afterwards keeps the admin.
+  db.exec("BEGIN");
+  db.exec(buildFreshSql(NOW + 1000, { hashes: freshHashes }));
+  db.exec("COMMIT");
+  assert.deepEqual(summary(db), s);
+  db.exec("BEGIN");
+  db.exec(buildResetSql());
+  db.exec(buildSeedSql(NOW, { demo: true, hashes }));
+  db.exec("COMMIT");
+  assert.deepEqual(summary(db), s);
+  assert.equal(count(db, "SELECT count(*) FROM members WHERE role = 'admin'"), 1);
   assert.throws(() => db.exec("DELETE FROM service_records"), /append-only/);
 });
 

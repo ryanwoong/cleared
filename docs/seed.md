@@ -6,7 +6,7 @@ Clearly fake data for trying Cleared out and for the live demo (Phase 7 §3.7, P
 
 ## What it loads
 
-The seed needs a finished **Setup** (the settings row). What it loads depends on the makerspace name:
+The seed needs a finished **Setup** (the settings row), except `--fresh` (below), which creates it. What it loads depends on the makerspace name:
 
 | Makerspace name | Loaded |
 |---|---|
@@ -21,10 +21,12 @@ Rename the makerspace in **Settings** (or pick *Demo Makerspace* at Setup) to ge
   | Name | Email | Role |
   |---|---|---|
   | Demo Student 1–5 | `demo.student1@example.com` … `demo.student5@example.com` | member |
+  | Demo Student 6 (**suspended** by Demo Staff 1) | `demo.student6@example.com` | member |
   | Demo Staff 1, Demo Staff 2 | `demo.staff1@example.com`, `demo.staff2@example.com` | staff |
   | Demo Technician | `demo.technician@example.com` | staff |
 
-- **Grants:** 21 sign-offs with expiry computed like the app does (granted date + the certification's validity months): mostly valid, two expiring within 30 days (Demo Student 2's laser, Demo Student 4's lathe), two expired (Demo Student 3's laser, Demo Student 5's lathe) and one revoked (Demo Student 3's wood shop).
+- **Grants:** 22 sign-offs with expiry computed like the app does (granted date + the certification's validity months): mostly valid, two expiring within 30 days (Demo Student 2's laser, Demo Student 4's lathe), two expired (Demo Student 3's laser, Demo Student 5's lathe) and one revoked (Demo Student 3's wood shop).
+- **Machine sessions:** 10. Three are **in use right now** (Laser Cutter A, Prusa MK4 #2 and the supervised Wood Lathe), and seven ended over the past nine days (by the member, by staff, or expired).
 - **Service history:** 6 records on 4 machines: two scheduled checkups, a **vendor repair** on Laser Cutter A (by "Demo Laser Service (vendor)", which resolved a reported fault), an inspection on the Wood Lathe and a **correction** of it, and a repair on the Band Saw.
 - **Checkups:** 3 (*Lens and mirror clean* on Laser Cutter A: OK; *Blade, fence and riving knife check* on the Table Saw: **overdue**; *Nozzle and bed check* on Prusa MK4 #1: due soon).
 - **Machine status:** the **Band Saw is out of service** (maintenance) with a public note and an expected-back date; one open fault (not out of service) on Laser Cutter B.
@@ -39,7 +41,7 @@ Locally, every demo member gets an email + password account, hashed on your comp
 cleared-demo-pass
 ```
 
-This password is public (it's in this repository): **it's only ever used on a local database.** On the deployment, demo members get **no** account and can't sign in; they only populate history. Live-demo accounts on the deployment are real accounts you sign up yourself (P7-74).
+This password is public (it's in this repository). A plain seed or `--reset` on the deployment gives demo members **no** account: they only populate history. Only `--remote --fresh` (below) creates sign-in accounts on a deployment, with this same public password. Every account and what it shows: [`demo-accounts.md`](demo-accounts.md).
 
 ## Commands
 
@@ -47,9 +49,21 @@ This password is public (it's in this repository): **it's only ever used on a lo
 npm run db:seed                               # your local D1 (.wrangler/state)
 npm run db:seed -- --persist-to <dir>         # another local D1 state directory
 npm run db:seed -- --reset --i-know           # back up, clear and re-seed the local D1
+npm run db:seed -- --fresh --i-know           # back up, wipe EVERYTHING locally and seed a complete demo (no Setup needed)
+npm run db:seed -- --remote --fresh --i-know  # the same on the deployment (public password: demo deployments only)
 bash scripts/reset-demo.sh --i-know           # the same on the deployment
 npm run db:seed -- --remote                   # add missing demo data on the deployment (no reset; "Demo" name only)
 ```
+
+## Starting fresh
+
+`npm run db:seed -- --fresh --i-know` gives you a complete demo from any database, even one where Setup was never done (add `--remote` for the deployment):
+
+1. **Backs up** to `~/cleared-backups/` (as a reset does).
+2. **Deletes every row in every table**, including every account, session and the makerspace settings, whatever the makerspace is called (only `app_meta` and the migrations table stay). Your own account goes too.
+3. **Creates** the makerspace *Demo Makerspace* (America/Edmonton) and an admin, **Demo Admin** (`demo.admin@example.com`), in place of Setup, then loads everything above.
+
+All of it is one transaction. Everyone, the admin included, signs in with the password above, listed in [`demo-accounts.md`](demo-accounts.md). **On a deployment that makes the admin's password public**: use it only on a throwaway demo deployment, and set the deployment up fresh before real use.
 
 ## Resetting
 

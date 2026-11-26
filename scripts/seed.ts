@@ -4,6 +4,9 @@
  *   npm run db:seed                                   your local D1 (.wrangler/state)
  *   npm run db:seed -- --persist-to <dir>             another local D1 state directory
  *   npm run db:seed -- --reset --i-know               back up, clear and re-seed the local D1
+ *   npm run db:seed -- --fresh --i-know               back up, wipe EVERYTHING locally (accounts and
+ *                                                     settings too) and seed a complete demo makerspace
+ *   npm run db:seed -- --remote --fresh --i-know      the same on the deployment
  *   bash scripts/reset-demo.sh --i-know               the same on the deployment (--remote)
  *
  * Complete Setup first (the settings row must exist). The catalog (rooms,
@@ -23,6 +26,13 @@
  * repository), then clears the business tables and the demo members and
  * re-seeds, all in one file that wrangler runs as one transaction.
  *
+ * `--fresh` needs no Setup and ignores the current name: after the backup it
+ * deletes every row in every table, then creates "Demo Makerspace", an admin
+ * (Demo Admin, demo.admin@example.com) and all the demo data, in one
+ * transaction. Everyone signs in with the demo password in
+ * docs/demo-accounts.md, on the deployment too (a deliberate choice: those
+ * credentials are public, so only ever use --fresh on a demo deployment).
+ *
  * Nothing personal is printed: no names, emails or passwords.
  */
 import { spawnSync } from "node:child_process";
@@ -32,11 +42,13 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { hashPassword } from "better-auth/crypto";
 import {
+  FRESH_ADMIN,
   MEMBERS,
   SEED_USAGE,
   SUMMARY_SQL,
   backupDirRefusal,
   backupStamp,
+  buildFreshSql,
   buildResetSql,
   buildSeedSql,
   isDemoName,
@@ -71,6 +83,9 @@ async function main() {
     process.exit(2);
   }
   if (args.reset && !args.iKnow) fail(`refusing to reset: ${resetRefusal({ iKnow: false, settingsName: null })}`, 2);
+  if (args.fresh && !args.iKnow) {
+    fail(`refusing: --fresh deletes every account and all data ${args.remote ? "on the deployment" : "in the local database"}. Pass --i-know as well.`, 2);
+  }
 
   const where = args.remote ? "on the deployment" : "in the local database";
   const target = args.remote
@@ -98,20 +113,22 @@ async function main() {
 
   const settingsRow = query("SELECT name FROM settings WHERE id = 'singleton'")[0] as { name: string } | undefined;
   const settingsName = settingsRow?.name ?? null;
-  if (settingsName === null) fail("this database has no makerspace yet. Complete Setup in the app first, then run the seed.");
-  const demo = isDemoName(settingsName);
+  if (settingsName === null && !args.fresh) {
+    fail("this database has no makerspace yet. Complete Setup in the app first (or use --fresh --i-know), then run the seed.");
+  }
+  const demo = args.fresh || isDemoName(settingsName);
 
   if (args.reset) {
     const refusal = resetRefusal({ iKnow: args.iKnow, settingsName });
     if (refusal) fail(`refusing to reset: ${refusal}`, 2);
   }
-  if (args.remote) {
+  if (args.remote && !args.fresh) {
     const refusal = remoteSeedRefusal({ settingsName });
     if (refusal) fail(`refusing: ${refusal}`, 2);
   }
 
   // Back up before deleting anything.
-  if (args.reset) {
+  if (args.reset || args.fresh) {
     const dir = resolve(args.backupDir ?? join(homedir(), "cleared-backups"));
     const refusal = backupDirRefusal(dir, repoRoot);
     if (refusal) fail(`refusing to reset: ${refusal}`, 2);
@@ -136,15 +153,16 @@ async function main() {
   }
 
   let hashes: Map<string, string> | null = null;
-  if (!args.remote && demo) {
+  if ((!args.remote || args.fresh) && demo) {
     hashes = new Map();
-    for (const m of MEMBERS) hashes.set(m.email, await hashPassword(LOCAL_DEMO_PASSWORD));
+    for (const m of [...MEMBERS, ...(args.fresh ? [FRESH_ADMIN] : [])]) {
+      hashes.set(m.email, await hashPassword(LOCAL_DEMO_PASSWORD));
+    }
   }
 
-  const sql = [
-    ...(args.reset ? [buildResetSql()] : []),
-    buildSeedSql(Date.now(), { demo, remote: args.remote, hashes }),
-  ].join("\n");
+  const sql = args.fresh
+    ? buildFreshSql(Date.now(), { hashes: hashes! })
+    : [...(args.reset ? [buildResetSql()] : []), buildSeedSql(Date.now(), { demo, remote: args.remote, hashes })].join("\n");
 
   const tmp = mkdtempSync(join(tmpdir(), "cleared-seed-"));
   try {
@@ -153,7 +171,7 @@ async function main() {
     // One file = one transaction (locally a D1 batch; remotely an import that rolls back on failure).
     const r = wrangler(["d1", "execute", "DB", ...target, "--yes", "--file", file], false);
     if (r.status !== 0) {
-      fail(`wrangler d1 execute failed (see above). Nothing was changed${args.reset ? " (the backup is still there)" : ""}.`);
+      fail(`wrangler d1 execute failed (see above). Nothing was changed${args.reset || args.fresh ? " (the backup is still there)" : ""}.`);
     }
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -167,19 +185,22 @@ async function main() {
     );
   }
   console.log(
-    `db:seed: ${args.reset ? "reset and re-seeded" : "seeded"} ${where}: ` +
+    `db:seed: ${args.fresh ? "wiped and seeded a fresh demo makerspace" : args.reset ? "reset and re-seeded" : "seeded"} ${where}: ` +
       `${summary.rooms} rooms, ${summary.certifications} certifications, ${summary.machines} machines ` +
       `(${summary.out_of_service} out of service), ${summary.demo_members} demo members ` +
-      `(${summary.demo_sign_ins} can sign in), ${summary.grants} grants, ${summary.service_records} service records, ` +
-      `${summary.checkups} checkups, ${summary.open_faults} open faults. Existing names were skipped.`,
+      `(${summary.demo_sign_ins} can sign in, ${summary.suspended} suspended), ${summary.grants} grants, ` +
+      `${summary.sessions} machine sessions (${summary.open_sessions} in use now), ${summary.service_records} service records, ` +
+      `${summary.checkups} checkups, ${summary.open_faults} open faults.${args.fresh ? "" : " Existing names were skipped."}`,
   );
   if (!demo) {
     console.log(
       'db:seed: note: the makerspace name doesn\'t start with the word "Demo", so only the catalog was loaded. ' +
         'To load demo members and history, rename it (e.g. "Demo Makerspace") in Settings and run the seed again.',
     );
-  } else if (!args.remote) {
-    console.log("db:seed: demo members sign in with the password in docs/seed.md (local only).");
+  } else if (!args.remote || args.fresh) {
+    console.log(
+      `db:seed: demo members${args.fresh ? " and the admin (Demo Admin)" : ""} sign in with the password in docs/demo-accounts.md.`,
+    );
   }
 }
 
